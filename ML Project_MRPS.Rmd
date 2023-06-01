@@ -1,0 +1,962 @@
+---
+title: "ML Project"
+author: "Parnika Singh"
+date: "12/17/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Data exploration of survey dataset
+
+We begin by loading the required libraries and the dataset 
+```{r libraries, include=FALSE}
+library(corrplot)
+library(tidyverse)  # data manipulation
+library(cluster)    # clustering algorithms
+library(factoextra) # clustering algorithms & visualization
+library(dendextend) # for comparing two dendrograms
+library(reshape2)
+library(ggplot2)
+library(dplyr)
+```
+
+```{r dataset}
+flight_exploration <- read.csv("Train.csv", header = TRUE)
+str(flight_exploration)
+```
+
+### Distribution of scores received on services 
+
+The services are grouped in three categories- inflight serives, airport services, and online services. 
+```{r exploration}
+#Classifying the experience into Airport,Inflight and online
+Group <- rename(flight_exploration, Inflight1 = 'Seat.comfort', 
+              Airport1 = 'Departure.Arrival.time.convenient',
+              Inflight2 ='Food.and.drink', 
+              Airport2 = 'Gate.location',
+              Inflight3 = 'Inflight.wifi.service',
+              Inflight4 = 'Inflight.entertainment',
+              Online1 = 'Ease.of.Online.booking',
+              Inflight5 = 'On.board.service',
+              Inflight6 = 'Leg.room.service',
+              Airport3 = 'Baggage.handling',
+              Airport4 = 'Checkin.service',
+              Inflight7 = Cleanliness,
+              Online3 = 'Online.boarding')
+
+#Output of the grouping
+Group <- Group %>% 
+  mutate(InflightExperience =rowMeans(Group %>% select(starts_with("Inflight"))),
+         AirportExperience=rowMeans(Group %>% select(starts_with("Airport"))),
+         OnlineExperience=rowMeans(Group %>% select(starts_with("Online"))),
+         male=ifelse(Gender == 1,0,1))
+
+glimpse(Group)
+```
+```{r exploration 2}
+# Plot of inflight Experience
+ggplot(Group) +
+  aes(x = InflightExperience) +
+  geom_histogram(aes(y = ..density..)) +
+  geom_density()+
+  labs(title = "Histogram of Inflight Experience Satisfaction Scores")
+
+#Plot of Airport experience
+ggplot(Group) +
+  aes(x = AirportExperience) +
+  geom_histogram(aes(y = ..density..)) +
+  geom_density()+
+  labs(title = "Histogram of Airport Experience Satisfaction Scores")
+
+#Plot of Online experience
+ggplot(Group) +
+  aes(x = OnlineExperience) +
+  geom_histogram(aes(y = ..density..)) +
+  geom_density()+
+  labs(title = "Histogram of Online Experience Satisfaction Scores")
+```
+
+### Outliers in scores 
+
+Gathering and renaming for better visualization 
+```{r exploration 3}
+
+sat <- gather(flight_exploration, 'Seat.comfort', 'Departure.Arrival.time.convenient', 'Food.and.drink', 'Gate.location', 'Inflight.wifi.service', 'Inflight.entertainment', 'Ease.of.Online.booking', 'On.board.service', 'Leg.room.service','Baggage.handling', 'Checkin.service', Cleanliness, 'Online.boarding', key = "Criteria", value = "Satisfaction_Scale")
+
+sat$Criteria[sat$Criteria=="Seat.comfort"] <- "A1"
+sat$Criteria[sat$Criteria=="Departure.Arrival.time.convenient"] <- "A2"
+sat$Criteria[sat$Criteria=="Food.and.drink"] <- "A3"
+sat$Criteria[sat$Criteria=="Gate.location"] <- "A4"
+sat$Criteria[sat$Criteria=="Inflight.wifi.service"] <- "A5"
+sat$Criteria[sat$Criteria=="Inflight.entertainment"] <- "A6"
+sat$Criteria[sat$Criteria=="Ease.of.Online.booking"] <- "A7"
+sat$Criteria[sat$Criteria=="On.board.service"] <- "A8"
+sat$Criteria[sat$Criteria=="Leg.room.service"] <- "A9"
+sat$Criteria[sat$Criteria=="Baggage.handling"] <- "A10"
+sat$Criteria[sat$Criteria=="Checkin.service"] <- "A11"
+sat$Criteria[sat$Criteria=="Cleanliness"] <- "A12"
+sat$Criteria[sat$Criteria=="Online.boarding"] <- "A13"
+
+sat$Criteria <- as.factor(sat$Criteria)
+glimpse(sat)
+```
+
+Now, a box plot is plotted to check the services which had lower scores than the average scores 
+```{r}
+sat %>% 
+  mutate(class = fct_reorder(Criteria, Satisfaction_Scale, .fun = 'mean')) %>% 
+  ggplot(aes(x=reorder(Criteria, Satisfaction_Scale), y = Satisfaction_Scale,  fill = Criteria)) + 
+  geom_boxplot()+
+  stat_summary(fun.y = "mean", geom = "point", shape = 10, size = 3,fill = "Yellow") +
+  geom_hline(aes(yintercept = mean(Satisfaction_Scale)), linetype="dashed",color = "Orange", size = 1.2)+
+  scale_fill_brewer() +
+  labs(title = "Boxplot illustrating the Mean of Satisfaction Level",
+       caption = "BoxPlot",
+       x = "Satisfaction Criteria",
+       y = "Satisfaction Scale")+
+  theme(legend.position = "none")
+```
+
+### Scores of services by satisfied and disatified passengers 
+```{r exploration 4}
+# inflight wifi 
+ggplot(flight_exploration, 
+      aes(x = satisfaction, 
+            y = Inflight.wifi.service)) +
+  geom_boxplot()
+
+# departure arrival time convenient 
+ggplot(flight_exploration, 
+      aes(x = satisfaction, 
+            y = Departure.Arrival.time.convenient)) +
+  geom_boxplot()
+
+# ease of online booking 
+ggplot(flight_exploration, 
+      aes(x = satisfaction, 
+            y = Ease.of.Online.booking)) +
+  geom_boxplot()
+
+# gate location 
+ggplot(flight_exploration, 
+      aes(x = satisfaction, 
+            y = Gate.location)) +
+  geom_boxplot()
+
+# food and drink 
+ggplot(flight_exploration, 
+      aes(x = satisfaction, 
+            y = Food.and.drink)) +
+  geom_boxplot()
+
+# online boarding
+ggplot(flight_exploration, 
+      aes(x = satisfaction, 
+            y = Online.boarding)) +
+  geom_boxplot()
+
+# seat comfort
+ggplot(flight_exploration, 
+      aes(x = satisfaction, 
+            y = Seat.comfort)) +
+  geom_boxplot()
+
+# inflight entertainment
+ggplot(flight_exploration, 
+      aes(x = satisfaction, 
+            y = Inflight.entertainment)) +
+  geom_boxplot()
+
+# on board services 
+ggplot(flight_exploration, 
+      aes(x = satisfaction, 
+            y = On.board.service)) +
+  geom_boxplot()
+
+# leg room 
+ggplot(flight_exploration, 
+      aes(x = satisfaction, 
+            y = Leg.room.service)) +
+  geom_boxplot()
+
+# baggage handling
+ggplot(flight_exploration, 
+      aes(x = satisfaction, 
+            y = Baggage.handling)) +
+  geom_boxplot()
+
+# checkin service 
+ggplot(flight_exploration, 
+      aes(x = satisfaction, 
+            y = Checkin.service)) +
+  geom_boxplot()
+
+# inflight service 
+ggplot(flight_exploration, 
+      aes(x = satisfaction, 
+            y = Inflight.service)) +
+  geom_boxplot()
+
+# cleanliness 
+ggplot(flight_exploration, 
+      aes(x = satisfaction, 
+            y = Cleanliness)) +
+  geom_boxplot()
+```
+
+
+# Classification using survey dataset 
+
+We load the necessary libraries and store the flight survey dataset as dataframe 
+
+```{r , include=FALSE}
+library(rpart) 
+library(rpart.plot)
+library(plyr)
+library(readr)
+library(dplyr)
+library(caret)
+library(caretEnsemble)
+library(ROSE)
+library(class)
+library(tidyr)
+library(kernlab)
+library(e1071)
+```
+
+```{r }
+flight_survey <- flight_exploration
+str(flight_survey)
+summary(flight_survey)
+```
+
+### Data preprocessing 
+Here we remove the id columns, change the type of the variables, and removing the outliers
+```{r data pre-processing}
+# removing X and id 
+flight_survey <- flight_survey[, -c(1, 2)]
+
+# changing the characters to factors
+flight_survey$Gender <- as.factor(flight_survey$Gender)
+flight_survey$Customer.Type <-as.factor(flight_survey$Customer.Type)
+flight_survey$Type.of.Travel<-as.factor(flight_survey$Type.of.Travel)
+flight_survey$Class<-as.factor(flight_survey$Class)
+flight_survey$satisfaction<-as.factor(flight_survey$satisfaction)
+
+# changing the labels 
+levels(flight_survey$satisfaction) <- c("dissatisfied", "satisfied")
+
+# removing outliers 
+iqr <- IQR(flight_survey$Departure.Delay.in.Minutes) #removing outliers in departure delays
+Q <- quantile(flight_survey$Departure.Delay.in.Minutes, probs=c(.25, .75), na.rm = FALSE)
+flight_survey<- subset(flight_survey, flight_survey$Departure.Delay.in.Minutes > (Q[1] - 2.5*iqr) & flight_survey$Departure.Delay.in.Minutes < (Q[2]+2.5*iqr))
+iqr2 <- IQR(flight_survey$Arrival.Delay.in.Minutes, na.rm = TRUE) #removing outliers in arrival delays
+Q1 <- quantile(flight_survey$Arrival.Delay.in.Minutes, probs=c(.25, .75), na.rm = TRUE)
+flight_survey<- subset(flight_survey, flight_survey$Arrival.Delay.in.Minutes > (Q1[1] - 2.5*iqr2) & flight_survey$Arrival.Delay.in.Minutes < (Q1[2]+2.5*iqr2))
+
+str(flight_survey)
+```
+
+```{r data pre-processing 1}
+# removing the missing value
+colSums(is.na(flight_survey)) 
+flight_survey<- na.omit(flight_survey)
+```
+
+### Logistic Regression 
+###### Training the model 
+```{r}
+mdl1 <- glm(satisfaction~.-Departure.Delay.in.Minutes , data=flight_survey, family="binomial")
+options(scipen=999)
+summary(mdl1)
+```
+
+Using step regression to 
+```{r }
+library(caret)
+#training control for cross validation
+tr <- trainControl(method="cv", number=10)
+
+#using feature selection 
+mdl2 <- step(mdl1, direction="both", trainControl=tr)
+summary(mdl2)
+```
+
+After running step, we get the same model
+
+###### Testing the model 
+Testing data pre-processing 
+```{r GLM Training}
+#loading the testing dataset
+flight_survey.test <- read.csv('test.csv', header=TRUE)
+
+colSums(is.na(flight_survey.test)) #only four observations that are missing values.
+flight_survey.test<- na.omit(flight_survey.test)
+
+# removing X and id 
+flight_survey.test <- flight_survey.test[, -c(1, 2)]
+
+
+
+# data pre-processing
+flight_survey.test$Gender <- as.factor(flight_survey.test$Gender)
+flight_survey.test$Customer.Type <-as.factor(flight_survey.test$Customer.Type)
+flight_survey.test$Type.of.Travel<-as.factor(flight_survey.test$Type.of.Travel)
+flight_survey.test$Class<-as.factor(flight_survey.test$Class)
+flight_survey.test$satisfaction<-as.factor(flight_survey.test$satisfaction)
+levels(flight_survey.test$satisfaction) <- c("dissatisfied", "satisfied")
+
+str(flight_survey.test)
+```
+
+```{r GLM Training2}
+#predicting the satisfaction level 
+mdl1.pred <- predict(mdl1, flight_survey.test[,-23], type="response")
+
+# first 5 actual and predicted records 
+data.frame(actual=flight_survey.test$satisfaction[1:5], predicted=mdl1.pred[1:5])
+```
+Setting the cutoff as 0.5 
+```{r GLM Training3}
+#classification by putting cut of 0.5
+trainEstimatedResponse = ifelse(mdl1.pred > 0.5, "satisfied", "dissatisfied")
+class(trainEstimatedResponse)
+levels(as.factor(trainEstimatedResponse))
+
+# Accuracy, Estimation 
+table(flight_survey.test$satisfaction, trainEstimatedResponse)
+mean(trainEstimatedResponse==flight_survey.test$satisfaction)
+```
+
+###### Calculating Accuracy
+```{r Accuracy}
+library(caret)
+library(e1071)
+
+# confusion matrix
+confusionMatrix(as.factor(ifelse(mdl1.pred>0.5, 'satisfied', 'dissatisfied')), 
+                flight_survey.test$satisfaction, positive = "satisfied")
+```
+
+```{r Accuracy2}
+#computing accuracy per cutoff to select the best cutoff 
+accT = c() 
+for (cut in seq(0,1,0.1)){
+  cm <- confusionMatrix(as.factor(ifelse(mdl1.pred>cut, 'satisfied', 'dissatisfied')), 
+                flight_survey.test$satisfaction, positive = "satisfied")
+  accT = c(accT, cm$overall[[1]])
+}
+
+# plot accuracy 
+plot(accT ~ seq(0,1,0.1), xlab = "Cutoff Value", ylab = "", type = "l", ylim = c(0, 1))
+lines(1-accT ~ seq(0,1,0.1), type = "l", lty = 2)
+legend("topright",  c("accuracy", "overall error"), lty = c(1, 2), merge = TRUE)
+```
+
+```{r Accuracy3}
+#plotting the ROC curve 
+library(pROC)
+test_roc = roc(flight_survey.test$satisfaction ~ mdl1.pred, plot = TRUE, print.auc = T)
+# compute auc
+auc(test_roc)
+```
+
+Selecting cutoff as 0.5 only, as the overall accuracy is high with the cut off and area under the curve is 92.6%
+
+### Decision Tree 
+Creating default tree using rpart()
+```{r Tree}
+# default tree 
+set.seed(321)
+default.ct <- rpart(satisfaction ~ .-Departure.Delay.in.Minutes , data = flight_survey, method = "class")
+names(default.ct)
+#summary(default.ct)
+default.ct$variable.importance
+
+length(default.ct$frame$var[default.ct$frame$var == "<leaf>"])
+
+# Plot tree
+prp(default.ct, type = 2, extra = 1, under = TRUE, split.font = 1, varlen = -10,  box.palette=c("red", "green"))
+```
+
+Checking the accuracy of the model 
+```{r Tree 2}
+#Results
+
+# Training data
+default.ct.point.pred.train <- predict(default.ct, flight_survey[, -23],type = "class")
+confusionMatrix(default.ct.point.pred.train, as.factor(flight_survey$satisfaction),  positive = "satisfied")
+
+# Testing data
+default.ct.point.pred.test <- predict(default.ct,flight_survey.test[, -23],type = "class")
+confusionMatrix(default.ct.point.pred.test, as.factor(flight_survey.test$satisfaction),  positive = "satisfied")
+
+```
+
+Next, we use the cross validation proceedure, which gives an overfitted model 
+```{r Tree 3}
+# using cp as 0.00001
+cv.ct <- rpart(satisfaction ~ .-Departure.Delay.in.Minutes , data = flight_survey, method = "class", 
+               cp = 0.00001, minsplit = 5, xval=5)
+
+prp(cv.ct, type = 2, extra = 1, under = TRUE, split.font = 1, varlen = -10,  box.palette=c("red", "green"))
+
+cv.ct.point.pred.test <- predict(cv.ct,flight_survey.test[, -23],type = "class")
+confusionMatrix(cv.ct.point.pred.test, as.factor(flight_survey.test$satisfaction),  positive = "satisfied")
+
+#printcp(cv.ct)
+```
+
+```{r Tree 4}
+# pruning the tree to avoid overfitting 
+pruned.ct <- prune(cv.ct, 
+                   cp = cv.ct$cptable[which.min(cv.ct$cptable[,"xerror"]),"CP"])
+length(pruned.ct$frame$var[pruned.ct$frame$var == "<leaf>"])
+prp(pruned.ct, type = 2, extra = 1, split.font = 1, varlen = -10, box.palette=c("red", "green"))  
+
+pruned.ct.point.pred.test <- predict(pruned.ct,flight_survey.test[, -23],type = "class")
+confusionMatrix(pruned.ct.point.pred.test, as.factor(flight_survey.test$satisfaction),  positive = "satisfied")
+```
+
+```{r Tree 5}
+#pruning using a lower cp
+set.seed(1234)
+pruned.ct1 <- prune(cv.ct, cp=0.006)
+prp(pruned.ct1, type = 1, extra = 1, under = TRUE, split.font = 1, varlen = -10, 
+    box.palette=c("red", "green")) 
+
+pruned.ct.point.pred.test1 <- predict(pruned.ct1,flight_survey.test[, -23],type = "class")
+confusionMatrix(pruned.ct.point.pred.test1, as.factor(flight_survey.test$satisfaction),  positive = "satisfied")
+```
+
+```{r Tree 6}
+# plotting the ROC for the final prunned tree 
+library("ROCR")
+Pred.cart = predict(pruned.ct1, newdata = flight_survey.test[, -23], type = "prob")[,2] 
+Pred2 = prediction(Pred.cart, flight_survey.test$satisfaction) 
+plot(performance(Pred2, "tpr", "fpr"))
+abline(0, 1, lty = 2)
+
+auc = performance(Pred2, 'auc')
+slot(auc, 'y.values')
+```
+
+
+We can also create a random forest to increase the accuracy of the model 
+```{r rf}
+# random forest 
+library(randomForest)
+rf <- randomForest(as.factor(satisfaction) ~.-Departure.Delay.in.Minutes  , data = flight_survey, ntree = 500, 
+                   mtry = 4, nodesize = 5, importance = TRUE, parms = list(loss = lossmatrix))  
+
+# important variables 
+varImpPlot(rf)
+
+rf.predict <- predict(rf ,flight_survey.test[, -23],type = "class")
+confusionMatrix(rf.predict, as.factor(flight_survey.test$satisfaction))
+```
+
+```{r rf-2}
+#plotting the ROC curve 
+predictions <- as.numeric(predict(rf, flight_survey.test[, -23], type="response"))
+pred <- prediction(predictions, flight_survey.test$satisfaction)
+perf <- performance(pred, measure = "tpr", x.measure = "fpr") 
+plot(perf, col=rainbow(10))
+auc1<- performance(pred,"auc")
+print(auc1)
+slot(auc1, 'y.values')
+```
+
+
+### Ensemble Model 
+
+In the base layer we added logistic model, decision tree, and random forest 
+```{r ensemble}
+small.index <- createDataPartition(flight_survey$satisfaction, p = 0.05, list = FALSE)
+flight_survey.small <- flight_survey[small.index, ]
+
+set.seed(4321)
+
+control_stacking <- trainControl(method="repeatedcv", number=5, repeats=2, savePredictions=TRUE, classProbs=TRUE)
+
+algorithms_to_use <- c('rpart', 'glm', 'rf')
+
+stacked_models <- caretList(satisfaction ~.-Departure.Delay.in.Minutes , data = flight_survey.small, trControl = control_stacking, methodList = algorithms_to_use)
+
+stacking_results <- resamples(stacked_models)
+
+summary(stacking_results)
+```
+
+Next, these results are stacked on the logistic regression model 
+```{r ensemble-2}
+
+stackControl <- trainControl(method="repeatedcv", number=5, repeats=3, savePredictions=TRUE, classProbs=TRUE)
+set.seed(100)
+glm_stack <- caretStack(stacked_models, method="glm", metric="Accuracy", trControl=stackControl)
+print(glm_stack)
+```
+
+Based ont the classification results, arrival delays lead to reduction in satisfaction probability. Therefore, next we explore the arrival delays to see what factors contribute the most in delays. 
+
+# Data Exploration of Arrival Delay dataset 
+
+We begin by loading the dataset 
+```{r }
+flight_delay <- read.csv('delayml.csv')
+flight_delay <- na.omit(flight_delay) 
+str(flight_delay)
+```
+
+Next, we pre-process the data 
+```{r pre-processing}
+flight_delay$DAY_OF_WEEK <- as.factor(flight_delay$DAY_OF_WEEK)
+```
+
+### Distribution of arrival delays
+
+```{r }
+ggplot(flight_delay, aes(ARRIVAL_DELAY)) +
+  geom_histogram(aes(y=..count..),
+                 fill="#c7ceea",
+                 alpha = 0.8,
+                 color="black", 
+                 bins = 30) +
+  labs(x = "Arrival Delay", y = "Frequency")
+```
+
+### Correlation 
+```{r }
+# departure delays and arrival delays
+ggplot(flight_delay, aes(x=DEPARTURE_DELAY, y=ARRIVAL_DELAY)) + geom_point()
+
+# taxi in and arrival delays 
+ggplot(flight_delay, aes(x=TAXI_IN, y=ARRIVAL_DELAY)) + geom_point()
+
+# taxi out and arrival delays
+ggplot(flight_delay, aes(x=TAXI_OUT, y=ARRIVAL_DELAY)) + geom_point()
+```
+
+
+# Linear Regression Model 
+Dividing data in training and testing 
+```{r}
+set.seed(123)
+sample_size = round(nrow(flight_delay)*.80) # 80/20 rule
+train_ind <- sample(seq_len(nrow(flight_delay)), size = sample_size)
+flight_delay_train <- flight_delay[train_ind,]
+flight_delay_test <- flight_delay[-train_ind,]
+```
+
+### Training the model 
+```{r}
+# setting the cross validation set
+tr1 <- trainControl(method="cv", number=10)
+
+#Model Building
+
+myreg <- lm(ARRIVAL_DELAY ~  TAXI_OUT +  TAXI_IN+ DEPARTURE_DELAY + DISTANCE + DAY_OF_WEEK, data = flight_delay_train, trainControl=tr1)
+summary(myreg)
+
+myreg_1 <- lm(ARRIVAL_DELAY ~  TAXI_OUT + TAXI_IN+ DISTANCE + DAY_OF_WEEK + DEPARTURE_DELAY + AIR_SYSTEM_DELAY + SECURITY_DELAY + AIRLINE_DELAY + WEATHER_DELAY, data = flight_delay_train, trainControl=tr)
+summary(myreg_1)
+```
+
+### Testing 
+
+```{r}
+library(forecast)
+
+# Model 1 
+pred_values = predict(myreg, newdata = flight_delay_test)
+
+flight_delay_test$pred_ad = pred_values
+
+all.residuals <- flight_delay_test$ARRIVAL_DELAY - pred_values
+My_residuals<-data.frame("Predicted" = pred_values, "Actual" = flight_delay_test$ARRIVAL_DELAY,
+           "Residual" = all.residuals)
+head(My_residuals)
+accuracy(pred_values, flight_delay_test$ARRIVAL_DELAY)
+
+
+# Model 2 
+pred_values_1 = predict(myreg_1, newdata = flight_delay_test)
+
+flight_delay_test$pred_ad_1 = pred_values_1
+
+all.residuals_1 <- flight_delay_test$ARRIVAL_DELAY - pred_values_1
+My_residuals_1<-data.frame("Predicted" = pred_values_1, "Actual" = flight_delay_test$ARRIVAL_DELAY,
+           "Residual" = all.residuals_1)
+head(My_residuals_1)
+accuracy(pred_values_1, flight_delay_test$ARRIVAL_DELAY)
+```
+
+
+# Clustering Analysis 
+
+We begin by loading libraries and storing dataset as a dataframe
+```{r , include=FALSE}
+library(corrplot)
+library(tidyverse)
+library(cluster)
+library(factoextra)
+library(dendextend)
+library(stats)
+library(ape)
+library(caret)
+library(GGally)
+library(plotly)
+library(ggstatsplot)
+library(Rtsne)
+```
+
+```{r}
+flight_cluster <- read.csv('test.csv', header = TRUE)
+```
+
+Pre processing the dataset 
+```{r load Data}
+flight_cluster$Gender<-as.factor(flight_cluster$Gender)
+flight_cluster$Customer.Type<-as.factor(flight_cluster$Customer.Type)
+flight_cluster$Type.of.Travel<-as.factor(flight_cluster$Type.of.Travel)
+flight_cluster$Class<-as.factor(flight_cluster$Class)
+flight_cluster$satisfaction<-as.factor(flight_cluster$satisfaction)
+flight_cluster$Gender<-unclass(flight_cluster$Gender)
+flight_cluster$Customer.Type<-unclass(flight_cluster$Customer.Type)
+flight_cluster$Type.of.Travel<-unclass(flight_cluster$Type.of.Travel)
+flight_cluster$Class<-unclass(flight_cluster$Class)
+flight_cluster$satisfaction<-unclass(flight_cluster$satisfaction)
+flight_cluster$Arrival.Delay.in.Minutes<-as.integer(flight_cluster$Arrival.Delay.in.Minutes)
+str(flight_cluster) #converting all variables to integers.
+
+iqr <- IQR(flight_cluster$Departure.Delay.in.Minutes) #removing outliers in departure delays
+Q <- quantile(flight_cluster$Departure.Delay.in.Minutes, probs=c(.25, .75), na.rm = FALSE)
+flight_cluster<- subset(flight_cluster, flight_cluster$Departure.Delay.in.Minutes > (Q[1] - 2.5*iqr) & flight_cluster$Departure.Delay.in.Minutes < (Q[2]+2.5*iqr))
+iqr2 <- IQR(flight_cluster$Arrival.Delay.in.Minutes, na.rm = TRUE) #removing outliers in arrival delays
+Q1 <- quantile(flight_cluster$Arrival.Delay.in.Minutes, probs=c(.25, .75), na.rm = TRUE)
+flight_cluster<- subset(flight_cluster, flight_cluster$Arrival.Delay.in.Minutes > (Q1[1] - 2.5*iqr2) & flight_cluster$Arrival.Delay.in.Minutes < (Q1[2]+2.5*iqr2))
+summary(flight_cluster)
+summary(flight_cluster$satisfaction)
+```
+
+Preparing the dataset for PAM clustering
+```{r}
+flight_PAM <- read.csv('test.csv', header = TRUE)
+flight_PAM$Gender<-as.factor(flight_PAM$Gender)
+flight_PAM$Customer.Type<-as.factor(flight_PAM$Customer.Type)
+flight_PAM$Type.of.Travel<-as.factor(flight_PAM$Type.of.Travel)
+flight_PAM$Class<-as.factor(flight_PAM$Class)
+flight_PAM$satisfaction<-as.factor(flight_PAM$satisfaction)
+flight_PAM$Arrival.Delay.in.Minutes<-as.integer(flight_PAM$Arrival.Delay.in.Minutes)
+str(flight_PAM) 
+iqr <- IQR(flight_PAM$Departure.Delay.in.Minutes)
+Q <- quantile(flight_PAM$Departure.Delay.in.Minutes, probs=c(.25, .75), na.rm = FALSE)
+flight_PAM<- subset(flight_PAM, flight_PAM$Departure.Delay.in.Minutes > (Q[1] - 2.5*iqr) & flight_PAM$Departure.Delay.in.Minutes < (Q[2]+2.5*iqr))
+iqr2 <- IQR(flight_PAM$Arrival.Delay.in.Minutes, na.rm = TRUE)
+Q1 <- quantile(flight_PAM$Arrival.Delay.in.Minutes, probs=c(.25, .75), na.rm = TRUE)
+flight_PAM<- subset(flight_PAM, flight_PAM$Arrival.Delay.in.Minutes > (Q1[1] - 2.5*iqr2) & flight_PAM$Arrival.Delay.in.Minutes < (Q1[2]+2.5*iqr2))
+summary(flight_PAM)
+summary(flight_PAM$satisfaction)
+```
+
+### Viewing the Distribution of Customer Satisfaction
+```{r}
+hist(flight_cluster$satisfaction, data=flight_cluster, main="Distribution of Satisfaction", xlab="Customer Satisfaction")
+```
+
+
+### Reducing the Data allowing us to Process Results without Issue.
+```{r Pre-Processing}
+set.seed(1)
+smaller.index <-createDataPartition(flight_cluster$satisfaction, p = 0.15, list = FALSE)
+ #Using create data partition function due to uneven distribution of satisfaction.
+flight_clean <- flight_cluster[smaller.index, ]#could not interpret the entire data set due to processing power limitations.
+smaller.indexPAM <-createDataPartition(flight_PAM$satisfaction, p = 0.15, list = FALSE) #This is for PAM Clustering
+flight_clean_PAM <- flight_PAM[smaller.indexPAM, ]
+```
+
+### Establishing the Testing Cluster Dataset
+```{r}
+set.seed(1)
+smaller.index.test <-createDataPartition(flight_clean$satisfaction, p = 0.95, list = FALSE)
+flight_clean_test <- flight_cluster[smaller.index.test, ]
+```
+
+### Cleaning from NA Values
+```{r  Pre-processing}
+colSums(is.na(flight_clean)) #only four observations that are missing values.
+flight_clean_PAM <- na.omit(flight_clean_PAM)
+flight_clean <- na.omit(flight_clean)
+flight_clean_test <- na.omit(flight_clean_test)
+```
+
+### Removing the Row ID and Customer ID, then Normalizing the Data
+```{r  Pre-processing2}
+flight_clean <- flight_clean[-c(1,2)]
+flight_clean_PAM <- flight_clean_PAM[-c(1,2)]
+flight_clean_test <- flight_clean_test[-c(1,2)]
+head(flight_clean,3)
+flight_clean_standardized<-as.data.frame(scale(flight_clean[1:23])) #normalizing data set considering there are multiple different measurements included in the data.
+flight_clean__test_standardized<-as.data.frame(scale(flight_clean_test[1:23]))
+flight_clean_PAM_standardized<-as.data.frame(scale(flight_clean_PAM[6:22]))
+```
+
+### K-Means clustering 
+###### Distance Matrix
+```{r  distance matrix}
+distance <- get_dist(flight_clean_standardized, method = "euclidean")
+fviz_dist(distance, gradient = list(low = "#00AFBB", mid = "white", high = "#FC4E07"))
+```
+
+
+###### K-means clusters
+```{r  K-Means 5}
+k2 <- kmeans(flight_clean_standardized, centers = 2, nstart=10, iter.max=10)
+k3 <- kmeans(flight_clean_standardized, centers = 3, nstart = 25, iter.max = 10)
+k4 <- kmeans(flight_clean_standardized, centers = 4, nstart = 25, iter.max = 10)
+k5 <- kmeans(flight_clean_standardized, centers = 5, nstart = 25, iter.max = 10)
+k10 <- kmeans(flight_clean_standardized, centers = 10, nstart = 25, iter.max = 10)
+# plots to compare
+p2 <- fviz_cluster(k2, geom = "point", data = flight_clean_standardized) + ggtitle("k = 2")
+p3 <- fviz_cluster(k3, geom = "point",  data = flight_clean_standardized) + ggtitle("k = 3")
+p4 <- fviz_cluster(k4, geom = "point",  data = flight_clean_standardized) + ggtitle("k = 4")
+p5 <- fviz_cluster(k5, geom = "point",  data = flight_clean_standardized) + ggtitle("k = 5")
+p10 <- fviz_cluster(k10, geom = "point",  data = flight_clean_standardized) + ggtitle("k = 10")
+
+library(gridExtra)
+grid.arrange(p2, p3, p4, p5, p10, nrow = 3)
+```
+
+
+###### Elbow Method and Average Silhouette Method:
+```{r  K-Means 6}
+my1<-fviz_nbclust(flight_clean_standardized, kmeans, method="wss")
+my2<-fviz_nbclust(flight_clean_standardized, kmeans, method = "silhouette")
+grid.arrange(my1, my2, nrow = 2)
+```
+
+###### GAP Statistic Graph
+```{r, warning==FALSE}
+gap_stat <- clusGap(flight_clean_standardized, FUN = kmeans, nstart = 10,
+                    K.max = 10, B = 50)
+fviz_gap_stat(gap_stat)
+```
+
+######  RSQ vs Silhouette
+```{r  K-Means 8}
+
+kmeans_perf2 = function(data,maxc,ns)
+{
+  result = as.data.frame(matrix(ncol=3, nrow=maxc-1))
+  colnames(result) = c("clusters", "rsq","silhouette")
+  dst <- daisy(data)
+  for(i in 2:maxc) {
+    cst <- kmeans(data,i,iter.max=100,nstart=ns)
+    rsq <- 1-cst$tot.withinss/(cst$totss)
+    slht <- silhouette(cst$cluster,dst)
+    result[i-1,]=c(i,rsq,mean(slht[,3]))
+  }
+  ggplot(result, aes(clusters)) + 
+    geom_line(aes(y = rsq, colour = "rsq")) + 
+    geom_line(aes(y = silhouette, colour = "silhouette"))
+  
+}
+kmeans_perf2(flight_clean_standardized,15,ns=10)
+```
+
+
+###### Final Cluster 
+```{r  K-Means 9}
+set.seed(1)
+final <- kmeans(flight_clean_standardized, 2, nstart = 25, iter.max = 10)
+#print(final)
+fviz_cluster(final, geom = "point",data = flight_clean_standardized)
+```
+
+###### Final Cluster Results
+```{r  K-Means 10}
+flight_clean_standardized %>%
+  mutate(Cluster = final$cluster) %>%
+  group_by(Cluster) %>%
+  summarise_all("mean")
+
+flight_clean_standardized$Cluster<-as.factor(final$cluster)
+flight_clean$Cluster<-as.factor(final$cluster) #adding as a factor variable to the original data set so you can use it for supervised learning.
+
+flight_clean %>%
+  group_by(Cluster) %>%
+  summarise_all("mean")
+
+k_results <- flight_clean %>%
+  mutate(cluster = final$clustering) %>%
+  group_by(Cluster) %>%
+  do(the_summary = summary(.))
+k_results$the_summary
+
+flight_clean %>%
+  group_by(Cluster) %>%
+  summarise_all("median")
+```
+
+###### Parallel Coordinate Plot
+```{r}
+flight_clean %>%
+  arrange(desc(Cluster)) %>%
+  ggparcoord(
+    columns = 1:23, groupColumn = "Cluster", order = "anyClass",
+    showPoints = TRUE, 
+    title = "Original",
+    alphaLines = 1
+    ) + 
+  scale_color_manual(values=c( "#69b3a2", "#E8E8E8", "#E8E8E8") ) +
+  theme(
+    legend.position="Default",
+    plot.title = element_text(size=10)
+  ) +
+  xlab("")+
+  theme(axis.text.x = element_text(angle = 90))
+
+myclustergraph <- ggparcoord(data = flight_clean, columns = c(1:23), groupColumn = "Cluster", scale = "std") + labs(x = "Flight Variables", y = "value (in standard-deviation units)",par(las=2), title = "Clustering")+
+   theme(axis.text.x = element_text(angle = 90))
+ggplotly(myclustergraph)
+```
+
+###### Proportion of Satisfaction in Each Cluster
+```{r}
+ddataCat <- flight_clean %>%
+mutate(cluster = final$cluster) 
+#print()
+DemoClusterJoin <- data.frame(flight_clean$satisfaction, ddataCat$cluster)
+table00<-as.matrix(table(DemoClusterJoin))
+table01<-100*prop.table(table00,2)
+print(table01) #displaying that clearly the majority of satisfied customers fall in the second cluster.
+```
+
+###### Testing Cluster
+```{r}
+set.seed(1)
+final_test <- kmeans(flight_clean__test_standardized, 2, nstart = 25, iter.max = 10)
+#print(final_test)
+fviz_cluster(final_test, geom = "point",data = flight_clean__test_standardized)
+```
+
+
+###### K-Means Test Cluster Results
+```{r}
+flight_clean__test_standardized %>%
+  mutate(Cluster = final_test$cluster) %>%
+  group_by(Cluster) %>%
+  summarise_all("mean")
+flight_clean_test$Cluster<-as.factor(final_test$cluster) #adding as a factor variable to the original data set so you can use it for supervised learning.
+flight_clean %>%
+  group_by(Cluster) %>%
+  summarise_all("mean")
+```
+
+
+### PAM 
+###### Distance for PAM
+```{r}
+gower_dist<-daisy(flight_clean_PAM_standardized,metric="gower")
+fviz_dist(gower_dist, gradient = list(low = "#00AFBB", mid = "white", high = "#FC4E07"))
+```
+
+###### PAM optimal clusters 
+```{r}
+fviz_nbclust(flight_clean_standardized[,-24], FUN = pam, method = "silhouette")
+fviz_nbclust(flight_clean_standardized[,-24], FUN = pam, method = "wss")
+```
+
+###### PAM Cluster Results
+```{r}
+k<-2
+pam_fit <- pam(gower_dist, diss = TRUE, k)
+
+flight_clean_PAM$Cluster<-as.factor(pam_fit$cluster)
+
+
+pam_results <- flight_clean_PAM %>%
+  mutate(cluster = pam_fit$clustering) %>%
+  group_by(cluster) %>%
+  do(the_summary = summary(.))
+pam_results$the_summary
+```
+
+*Again, very similar results compared to the k-means cluster test and k-means clusters.*
+
+
+###### Display PAM Cluster
+```{r}
+tsne_obj <- Rtsne(gower_dist, is_distance = TRUE)
+
+tsne_data <- tsne_obj$Y %>%
+  data.frame() %>%
+  setNames(c("X", "Y")) %>%
+  mutate(cluster = factor(pam_fit$clustering),
+         name = flight_clean_PAM_standardized$satisfaction)
+
+ggplot(aes(x = X, y = Y), data = tsne_data) +
+  geom_point(aes(color = cluster))
+```
+
+
+```{r}
+ddataCat2 <- flight_clean_PAM %>%
+mutate(cluster = pam_fit$cluster)
+#print()
+DemoClusterJoin1 <- data.frame(flight_clean_PAM$satisfaction, ddataCat2$cluster)
+table03<-as.matrix(table(DemoClusterJoin1))
+table04<-100*prop.table(table03,2)
+print(table04)
+```
+
+
+### Hierarchial Clustering 
+```{r} 
+set.seed(2)
+smaller.index <-createDataPartition(flight_clean_standardized$satisfaction, p = 0.35, list = FALSE)
+ #Reducing the partition of the already partitioned data due to processing issues from hierarchical clustering
+flight_clean_h <- flight_cluster[smaller.index, ]
+colSums(is.na(flight_clean_h))
+flight_clean_h <- na.omit(flight_clean_h)
+```
+
+###### Analyzing which method to use.
+```{r}
+methods <- c( "average", "single", "complete", "ward")
+names(methods) <- c( "average", "single", "complete", "ward")
+# 
+ac <- function(x) {
+agnes(flight_clean_h, method = x)$ac
+}
+map_dbl(methods, ac)
+```
+
+*Ward gives best results.*
+
+###### Hanging the Tree
+```{r}
+hier_cluster_for_flight <- agnes(flight_clean_h, method = "ward")
+pltree(hier_cluster_for_flight, cex = 0.6, hang = -1, main = "Dendrogram of agnes")
+```
+
+###### Optimal Number of Clusters 
+```{r}
+fviz_nbclust(flight_clean_h, FUN = hcut, method = "wss")
+fviz_nbclust(flight_clean_h, FUN = hcut, method = "silhouette")
+```
+
+###### Number of Observations in Each Cluster
+```{r}
+hier_flight_cluster <- cutree(hier_cluster_for_flight, k = 2)
+table(hier_flight_cluster)
+```
+
+###### Results of Hierachal Clustering
+```{r}
+aggregate(flight_clean_h[,-c(1,1)],list(hier_flight_cluster),mean)
+```
