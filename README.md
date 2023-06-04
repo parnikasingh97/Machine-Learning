@@ -1,1 +1,3 @@
 # Machine-Learning
+
+In this section, the Airline Satisfaction dataset has been used to identify the features which could increase the satisfaction level of the customers. Classification models like logistic regression, decision trees, random forests, and ensemble models were used for classifying the customers are 'satisfied' and ‘dissatisfied’. Linear regression model was used to identify the factors affecting arrival delays. Furthermore, clustering models were created to segment the customers into 'satisfied' and ‘dissatisfied’ which helped identify the features of both clusters. Based on the results, recommendations were made to increase the profit levels of the airline company.
